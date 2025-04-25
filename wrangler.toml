@@ -1,5 +1,5 @@
 name = "proxy-worker-cloudflare"
-     account_id = "<CLOUDFLARE_ACCOUNT_ID>"
+     account_id = "fda3abf6924443478d3932e9b590012f"
      main = "src/index.js"
      compatibility_date = "2025-04-25"
      routes = [
