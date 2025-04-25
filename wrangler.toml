@@ -1,0 +1,7 @@
+name = "proxy-worker-cloudflare"
+     account_id = "<CLOUDFLARE_ACCOUNT_ID>"
+     main = "src/index.js"
+     compatibility_date = "2025-04-25"
+     routes = [
+       { pattern = "servtech.site/*", zone_name = "servtech.site" },
+     ]
