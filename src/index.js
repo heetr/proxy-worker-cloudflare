@@ -7,6 +7,7 @@ var domainToPartyId = {
 const noPartyIdEndpoints = [
   '/images',
   '/monitoring',
+  '/api',
   // Thêm các endpoint khác nếu cần, ví dụ: '/static', '/assets'
 ];
 
