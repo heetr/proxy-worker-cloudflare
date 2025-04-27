@@ -6,8 +6,7 @@ var domainToPartyId = {
 // Danh sách endpoint không cần partyId
 const noPartyIdEndpoints = [
   '/images',
-  '/monitoring',
-  '/api',
+  '/monitoring'
   // Thêm các endpoint khác nếu cần, ví dụ: '/static', '/assets'
 ];
 
@@ -27,50 +26,59 @@ async function handleRequest(request) {
   const targetBase = "https://refactor.d2s3bo1qpvtzn8.amplifyapp.com";
   const targetUrl = new URL(url.pathname, targetBase);
 
-  // Chuyển tiếp tất cả query parameters gốc từ client
+  // Chuyển tiếp tất cả query parameters gốc, trừ partyId hoặc party_id
   for (const [key, value] of url.searchParams) {
-    targetUrl.searchParams.set(key, value);
-  }
-
-  // Thêm partyId cho các endpoint cần, không ghi đè query gốc
-  const needsPartyId = !noPartyIdEndpoints.some(endpoint => url.pathname.startsWith(endpoint));
-  if (needsPartyId && !targetUrl.searchParams.has('partyId')) {
-    targetUrl.searchParams.set("partyId", partyId);
+    if (key !== 'partyId' && key !== 'party_id') {
+      targetUrl.searchParams.set(key, value);
+    }
   }
 
   console.log('Request URL:', request.url); // Debug
   console.log('Target URL:', targetUrl.toString()); // Debug
 
-  try {
-    const response = await fetch(targetUrl, {
+  // Gửi partyId qua header cho các endpoint cần
+  const needsPartyId = !noPartyIdEndpoints.some(endpoint => url.pathname.startsWith(endpoint));
+  const headers = {
+    ...request.headers,
+    'User-Agent': 'Cloudflare-Worker'
+  };
+  if (needsPartyId) {
+    headers['X-Party-Id'] = partyId;
+  }
+
+  // Giới hạn redirect để ngăn loop
+  const maxRedirects = 5;
+  let redirectCount = 0;
+  let currentUrl = targetUrl;
+  let response;
+
+  while (redirectCount < maxRedirects) {
+    response = await fetch(currentUrl, {
       method: request.method,
-      headers: {
-        ...request.headers,
-        'User-Agent': 'Cloudflare-Worker' // Tránh bị chặn
-      },
+      headers: headers,
       body: request.body
     });
     console.log('Response status:', response.status); // Debug
 
-    // Xử lý redirect để ẩn partyId trong Location
     if (response.status >= 300 && response.status < 400) {
       const location = response.headers.get('Location');
       if (location) {
         const newLocation = new URL(location, targetBase);
-        newLocation.searchParams.delete('partyId'); // Xóa partyId khỏi redirect URL
-        const newResponse = new Response(response.body, {
-          status: response.status,
-          statusText: response.statusText,
-          headers: response.headers
-        });
-        newResponse.headers.set('Location', newLocation.toString());
-        return newResponse;
+        newLocation.searchParams.delete('partyId');
+        newLocation.searchParams.delete('party_id');
+        console.log('Redirect to:', newLocation.toString()); // Debug
+        currentUrl = newLocation;
+        redirectCount++;
+        continue;
       }
     }
-
-    return response;
-  } catch (error) {
-    console.log('Fetch error:', error.message); // Debug
-    return new Response('Error fetching target: ' + error.message, { status: 500 });
+    break;
   }
+
+  if (redirectCount >= maxRedirects) {
+    console.log('Too many redirects');
+    return new Response('Too many redirects', { status: 508 });
+  }
+
+  return response;
 }
