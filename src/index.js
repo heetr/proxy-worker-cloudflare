@@ -1,6 +1,6 @@
 var domainToPartyId = {
-  "servtech.site": "7f226ba9-de63-4f6d-9e38-332267c8cdf8",
-  "www.servtech.site": "7f226ba9-de63-4f6d-9e38-332267c8cdf8"
+  "servtech.site": "e9fb0a18-8921-46ad-b461-46abb15c1bb8",
+  "www.servtech.site": "e9fb0a18-8921-46ad-b461-46abb15c1bb8"
 };
 
 // Danh sách endpoint không cần partyId
