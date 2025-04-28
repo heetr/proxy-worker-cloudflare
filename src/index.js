@@ -93,6 +93,7 @@ async function handleRequest(request) {
         continue;
       }
     }
+    redirectCount++;
     break;
   }
 
