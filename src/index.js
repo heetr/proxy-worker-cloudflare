@@ -25,18 +25,33 @@ async function handleRequest(request) {
   }
 
   const targetBase = "https://refactor.d2s3bo1qpvtzn8.amplifyapp.com";
-  const targetUrl = new URL(url.pathname, targetBase);
+  let targetPath = url.pathname;
+  
+  // Chuẩn hóa pathname để bỏ trailing slash nếu cần
+  if (targetPath.endsWith('/') && targetPath !== '/') {
+    targetPath = targetPath.slice(0, -1);
+  }
+  const targetUrl = new URL(targetPath, targetBase);
 
-  // Chuyển tiếp tất cả query parameters gốc
+  // Chuyển tiếp query parameters
+  const isApiEndpoint = noPartyIdEndpoints.some(endpoint => url.pathname.startsWith(endpoint));
   for (const [key, value] of url.searchParams) {
-    targetUrl.searchParams.set(key, value);
+    if (isApiEndpoint) {
+      // Giữ query gốc cho /api/*
+      targetUrl.searchParams.set(key, value);
+    } else {
+      // Loại bỏ partyId/party_id cho các endpoint khác
+      if (key !== 'partyId' && key !== 'party_id') {
+        targetUrl.searchParams.set(key, value);
+      }
+    }
   }
 
   console.log('Request URL:', request.url); // Debug
   console.log('Target URL:', targetUrl.toString()); // Debug
 
-  // Gửi X-Party-Id cho các endpoint cần
-  const needsPartyId = !noPartyIdEndpoints.some(endpoint => url.pathname.startsWith(endpoint));
+  // Gửi X-Party-Id cho các endpoint không thuộc noPartyIdEndpoints
+  const needsPartyId = !isApiEndpoint;
   const headers = {
     ...request.headers,
     'User-Agent': 'Cloudflare-Worker'
@@ -64,7 +79,14 @@ async function handleRequest(request) {
       const location = response.headers.get('Location');
       if (location) {
         const newLocation = new URL(location, targetBase);
-        // Không xóa partyId để giữ query gốc cho /api/*
+        // Chuẩn hóa newLocation để bỏ trailing slash
+        if (newLocation.pathname.endsWith('/') && newLocation.pathname !== '/') {
+          newLocation.pathname = newLocation.pathname.slice(0, -1);
+        }
+        if (!isApiEndpoint) {
+          newLocation.searchParams.delete('partyId');
+          newLocation.searchParams.delete('party_id');
+        }
         console.log('Redirect to:', newLocation.toString()); // Debug
         currentUrl = newLocation;
         redirectCount++;
