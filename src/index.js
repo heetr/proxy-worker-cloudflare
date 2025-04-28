@@ -6,7 +6,8 @@ var domainToPartyId = {
 // Danh sách endpoint không cần partyId
 const noPartyIdEndpoints = [
   '/images',
-  '/monitoring'
+  '/monitoring',
+  '/api',
   // Thêm các endpoint khác nếu cần, ví dụ: '/static', '/assets'
 ];
 
@@ -26,17 +27,15 @@ async function handleRequest(request) {
   const targetBase = "https://refactor.d2s3bo1qpvtzn8.amplifyapp.com";
   const targetUrl = new URL(url.pathname, targetBase);
 
-  // Chuyển tiếp tất cả query parameters gốc, trừ partyId hoặc party_id
+  // Chuyển tiếp tất cả query parameters gốc
   for (const [key, value] of url.searchParams) {
-    if (key !== 'partyId' && key !== 'party_id') {
-      targetUrl.searchParams.set(key, value);
-    }
+    targetUrl.searchParams.set(key, value);
   }
 
   console.log('Request URL:', request.url); // Debug
   console.log('Target URL:', targetUrl.toString()); // Debug
 
-  // Gửi partyId qua header cho các endpoint cần
+  // Gửi X-Party-Id cho các endpoint cần
   const needsPartyId = !noPartyIdEndpoints.some(endpoint => url.pathname.startsWith(endpoint));
   const headers = {
     ...request.headers,
@@ -56,7 +55,8 @@ async function handleRequest(request) {
     response = await fetch(currentUrl, {
       method: request.method,
       headers: headers,
-      body: request.body
+      body: request.body,
+      redirect: 'manual' // Không tự động theo redirect
     });
     console.log('Response status:', response.status); // Debug
 
@@ -64,8 +64,7 @@ async function handleRequest(request) {
       const location = response.headers.get('Location');
       if (location) {
         const newLocation = new URL(location, targetBase);
-        newLocation.searchParams.delete('partyId');
-        newLocation.searchParams.delete('party_id');
+        // Không xóa partyId để giữ query gốc cho /api/*
         console.log('Redirect to:', newLocation.toString()); // Debug
         currentUrl = newLocation;
         redirectCount++;
