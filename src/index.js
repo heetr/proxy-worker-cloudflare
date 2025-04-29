@@ -2,7 +2,7 @@ const MAX_REDIRECTS = 5; // Số lần redirect tối đa
 const CACHE_SIZE_LIMIT = 1000; // Giới hạn kích thước cache
 const DEBUG = typeof DEBUG_LOG === 'string' && DEBUG_LOG.toLowerCase() === 'true'; // Bật/tắt chế độ debug
 const VALIDATE = typeof VALIDATE_PARTY_ID === 'string' && VALIDATE_PARTY_ID.toLowerCase() === 'true'; // Bật/tắt kiểm tra UUID
-const TARGET_BASE = TARGET_BASE || 'https://generic-shop.bookingcampus.com'; // URL đích mặc định
+const TARGET_BASE = TARGET_BASE || 'https://refactor.d2s3bo1qpvtzn8.amplifyapp.com'; // URL đích mặc định
 
 // Bộ nhớ cache cho ánh xạ hostname -> partyId
 const partyIdCache = new Map();
