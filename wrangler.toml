@@ -11,7 +11,7 @@ routes = [
 # Binding KV Namespace
 [[kv_namespaces]]
 binding = "DOMAIN_PARTY_ID_MAPPING"
-id = "" # ID sẽ được cung cấp qua Dashboard hoặc Wrangler CLI
+id = "a08747b8e58f4989b8aafa5c25dd46db" # ID sẽ được cung cấp qua Dashboard hoặc Wrangler CLI
 
 # Biến môi trường
 [vars]
