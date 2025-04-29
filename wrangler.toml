@@ -1,7 +1,20 @@
 name = "proxy-worker-cloudflare"
-     account_id = "fda3abf6924443478d3932e9b590012f"
-     main = "src/index.js"
-     compatibility_date = "2025-04-25"
-     routes = [
-       { pattern = "servtech.site/*", zone_name = "servtech.site" },
-     ]
+main = "src/index.js"
+compatibility_date = "2025-04-25"
+
+# Routes cho các domain
+routes = [
+  { pattern = "servtech.site/*", zone_name = "servtech.site" },
+  { pattern = "www.servtech.site/*", zone_name = "servtech.site" }
+]
+
+# Binding KV Namespace
+[[kv_namespaces]]
+binding = "DOMAIN_PARTY_ID_MAPPING"
+id = "" # ID sẽ được cung cấp qua Dashboard hoặc Wrangler CLI
+
+# Biến môi trường
+[vars]
+DEBUG = "false"
+TARGET_BASE = "https://refactor.d2s3bo1qpvtzn8.amplifyapp.com"
+VALIDATE_PARTY_ID = "true" # Bật kiểm tra định dạng UUID cho X-Party-Id từ client

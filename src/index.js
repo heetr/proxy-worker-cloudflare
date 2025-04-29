@@ -1,7 +1,10 @@
-var domainToPartyId = {
-  "servtech.site": "e9fb0a18-8921-46ad-b461-46abb15c1bb8",
-  "www.servtech.site": "e9fb0a18-8921-46ad-b461-46abb15c1bb8"
-};
+const partyIdCache = new Map();
+
+// Hàm kiểm tra định dạng UUID (tùy chọn)
+function isValidUUID(str) {
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  return uuidRegex.test(str);
+}
 
 addEventListener("fetch", (event) => {
   event.respondWith(handleRequest(event.request));
@@ -10,13 +13,38 @@ addEventListener("fetch", (event) => {
 async function handleRequest(request) {
   const url = new URL(request.url);
   const hostname = url.hostname;
-  const partyId = domainToPartyId[hostname];
+  
+  // Kiểm tra header X-Party-Id từ client
+  let partyId = request.headers.get('X-Party-Id');
+  let partyIdSource = 'header';
+  
+  // Validate partyId nếu bật VALIDATE_PARTY_ID
+  if (partyId && VALIDATE_PARTY_ID === "true" && !isValidUUID(partyId)) {
+    console.error('Invalid X-Party-Id format:', partyId);
+    return new Response('Invalid X-Party-Id', { status: 400 });
+  }
+
+  // Fallback tới KV nếu không có header X-Party-Id
   if (!partyId) {
-    console.log('Domain not found:', hostname);
+    partyIdSource = 'kv';
+    partyId = partyIdCache.get(hostname);
+    if (!partyId) {
+      try {
+        partyId = await DOMAIN_PARTY_ID_MAPPING.get(hostname);
+        if (partyId) partyIdCache.set(hostname, partyId);
+      } catch (error) {
+        console.error('KV error:', error);
+        return new Response('Internal Server Error', { status: 500 });
+      }
+    }
+  }
+  
+  if (!partyId) {
+    console.error('Domain not found in KV:', hostname);
     return new Response("Domain not configured", { status: 404 });
   }
 
-  const targetBase = "https://refactor.d2s3bo1qpvtzn8.amplifyapp.com";
+  const targetBase = TARGET_BASE || "https://refactor.d2s3bo1qpvtzn8.amplifyapp.com";
   let targetPath = url.pathname;
   
   // Chuẩn hóa pathname để bỏ trailing slash nếu cần
@@ -30,8 +58,11 @@ async function handleRequest(request) {
     targetUrl.searchParams.set(key, value);
   }
 
-  console.log('Request URL:', request.url);
-  console.log('Target URL:', targetUrl.toString());
+  if (DEBUG === "true") {
+    console.log('Request URL:', request.url);
+    console.log('Target URL:', targetUrl.toString());
+    console.log(`Party-Id: ${partyId} (Source: ${partyIdSource})`);
+  }
 
   // Thêm header X-Party-Id và User-Agent
   const headers = new Headers(request.headers);
@@ -52,7 +83,10 @@ async function handleRequest(request) {
         body: request.body,
         redirect: 'manual'
       });
-      console.log('Response status:', response.status);
+      
+      if (DEBUG === "true") {
+        console.log('Response status:', response.status);
+      }
 
       if (response.status >= 300 && response.status < 400) {
         const location = response.headers.get('Location');
@@ -62,7 +96,9 @@ async function handleRequest(request) {
           if (newLocation.pathname.endsWith('/') && newLocation.pathname !== '/') {
             newLocation.pathname = newLocation.pathname.slice(0, -1);
           }
-          console.log('Redirect to:', newLocation.toString());
+          if (DEBUG === "true") {
+            console.log('Redirect to:', newLocation.toString());
+          }
           currentUrl = newLocation;
           redirectCount++;
           continue;
@@ -76,7 +112,7 @@ async function handleRequest(request) {
   }
 
   if (redirectCount >= maxRedirects) {
-    console.log('Too many redirects');
+    console.error('Too many redirects');
     return new Response('Too many redirects', { status: 508 });
   }
 
