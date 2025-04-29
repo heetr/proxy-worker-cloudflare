@@ -1,6 +1,6 @@
 const partyIdCache = new Map();
 
-// Hàm kiểm tra định dạng UUID (tùy chọn)
+// Hàm kiểm tra định dạng UUID
 function isValidUUID(str) {
   const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   return uuidRegex.test(str);
@@ -14,37 +14,40 @@ async function handleRequest(request) {
   const url = new URL(request.url);
   const hostname = url.hostname;
   
-  // Kiểm tra header X-Party-Id từ client
-  let partyId = request.headers.get('X-Party-Id');
-  let partyIdSource = 'header';
-  
-  // Validate partyId nếu bật VALIDATE_PARTY_ID
-  if (partyId && VALIDATE_PARTY_ID === "true" && !isValidUUID(partyId)) {
-    console.error('Invalid X-Party-Id format:', partyId);
-    return new Response('Invalid X-Party-Id', { status: 400 });
-  }
-
-  // Fallback tới KV nếu không có header X-Party-Id
-  if (!partyId) {
-    partyIdSource = 'kv';
-    partyId = partyIdCache.get(hostname);
-    if (!partyId) {
-      try {
-        partyId = await DOMAIN_PARTY_ID_MAPPING.get(hostname);
-        if (partyId) partyIdCache.set(hostname, partyId);
-      } catch (error) {
-        console.error('KV error:', error);
-        return new Response('Internal Server Error', { status: 500 });
-      }
+  // Lấy partyId từ KV để so sánh hoặc xác nhận domain hợp lệ
+  let kvPartyId = partyIdCache.get(hostname);
+  if (!kvPartyId) {
+    try {
+      kvPartyId = await DOMAIN_PARTY_ID_MAPPING.get(hostname);
+      if (kvPartyId) partyIdCache.set(hostname, kvPartyId);
+    } catch (error) {
+      console.error('KV error:', error);
+      return new Response('Internal Server Error', { status: 500 });
     }
   }
   
-  if (!partyId) {
+  if (!kvPartyId) {
     console.error('Domain not found in KV:', hostname);
     return new Response("Domain not configured", { status: 404 });
   }
 
-  const targetBase = TARGET_BASE || "https://refactor.d2s3bo1qpvtzn8.amplifyapp.com";
+  // Kiểm tra header X-Party-Id từ client
+  const clientPartyId = request.headers.get('X-Party-Id');
+  let partyIdSource = clientPartyId ? 'header' : 'none';
+  
+  // Nếu client gửi X-Party-Id, so sánh với KV
+  if (clientPartyId) {
+    if (VALIDATE_PARTY_ID === "true" && !isValidUUID(clientPartyId)) {
+      console.error('Invalid X-Party-Id format:', clientPartyId);
+      return new Response('Invalid X-Party-Id', { status: 400 });
+    }
+    if (clientPartyId !== kvPartyId) {
+      console.error('X-Party-Id does not match KV value:', clientPartyId, kvPartyId);
+      return new Response('Unauthorized X-Party-Id', { status: 403 });
+    }
+  }
+
+  const targetBase = TARGET_BASE || "https://generic-shop.bookingcampus.com";
   let targetPath = url.pathname;
   
   // Chuẩn hóa pathname để bỏ trailing slash nếu cần
@@ -61,15 +64,14 @@ async function handleRequest(request) {
   if (DEBUG === "true") {
     console.log('Request URL:', request.url);
     console.log('Target URL:', targetUrl.toString());
-    console.log(`Party-Id: ${partyId} (Source: ${partyIdSource})`);
+    console.log(`Party-Id: ${clientPartyId || 'none'} (Source: ${partyIdSource})`);
   }
 
-  // Thêm header X-Party-Id và User-Agent
+  // Sao chép header từ client, chỉ ghi đè User-Agent
   const headers = new Headers(request.headers);
   headers.set('User-Agent', 'Cloudflare-Worker');
-  headers.set('X-Party-Id', partyId);
 
-  // Giới hạn redirect để ngăn loop
+  // Gửi request tới backend
   const maxRedirects = 5;
   let redirectCount = 0;
   let currentUrl = targetUrl;
@@ -92,7 +94,6 @@ async function handleRequest(request) {
         const location = response.headers.get('Location');
         if (location) {
           const newLocation = new URL(location, targetBase);
-          // Chuẩn hóa newLocation để bỏ trailing slash
           if (newLocation.pathname.endsWith('/') && newLocation.pathname !== '/') {
             newLocation.pathname = newLocation.pathname.slice(0, -1);
           }
